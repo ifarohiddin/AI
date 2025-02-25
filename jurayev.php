@@ -8,7 +8,7 @@ $och=json_encode([
 ]);
 //bazaga ulanish
 $token="5587357372:AAEnynh2yP32Q8IutyBq7K_pXZVO83GEo4k";
-$db = mysqli_connect("localhost","u9133_salom","Apkuz","u9133_salom");
+$db = mysqli_connect("localhost","postgres","Minatokun13.","testdemo");
 mysqli_set_charset($db, "utf8mb4");
 
 $key=json_decode(file_get_contents("key.txt"), true)['message']['reply_markup'];

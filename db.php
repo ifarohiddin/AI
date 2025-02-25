@@ -1,7 +1,7 @@
 <?php
 
 //bazaga ulanish
-$db = mysqli_connect("localhost","u9133_salom","Apkuz","u9133_salom");
+$db = mysqli_connect("localhost","postgres","Minatokun13.","testdemo");
 mysqli_set_charset($db, "utf8mb4");
 
 

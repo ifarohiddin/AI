@@ -1,6 +1,6 @@
 <?php
 
-$connect= mysqli_connect("localhost","u9133_salom","Apkuz","u9133_salom");
+$connect= mysqli_connect("localhost","postgres","Minatokun13.","testdemo");
 if($connect){
 echo "Ulandi";
 }else{
