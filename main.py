@@ -1,6 +1,7 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message
+from aiogram.fsm.state import State, StatesGroup  # StatesGroup import qo'shildi
 from movie_request import request_movie, MovieStates
 from send_movie import send_movie
 from admin_panel import add_movie, edit_movie, delete_movie, set_channel, delete_channel, edit_channel
@@ -10,6 +11,8 @@ from check_user import check_membership
 from aiogram.fsm.context import FSMContext
 import os
 from dotenv import load_dotenv
+import psycopg2  # Kinolar ro‘yxatini olish uchun qo‘shildi
+from urllib.parse import urlparse  # DATABASE_URL uchun qo‘shildi
 
 load_dotenv()
 
