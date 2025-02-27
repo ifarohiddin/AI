@@ -31,7 +31,17 @@ async def send_movie(update: Update, bot: Bot, state: FSMContext):
 
     if movie:
         name, link = movie
-        await update.message.reply(f"*🎥 Kino:* *{name}*\n*📎 Link:* `{link}`\n\nKino bilan zavqlaning, rahmat! 🍿", parse_mode="Markdown")
+        # Telegram’dan video faylini olish va yuborish
+        try:
+            file_id = link  # Ma'lumotlar bazasidagi link faqat file_id sifatida saqlanadi
+            await bot.send_video(
+                chat_id=update.message.chat.id,
+                video=file_id,
+                caption=f"*🎥 Kino:* *{name}*\n\nKino bilan zavqlaning, rahmat! 🍿",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            await update.message.reply("*❌ Video yuborishda xatolik yuz berdi!*\n\nLinkni tekshirib ko‘ring yoki admin bilan bog‘laning.", parse_mode="Markdown")
     else:
         await update.message.reply("*❌ Bunday ID bilan kino topilmadi!*\n\nKino ID’sini qayta tekshirib ko‘ring, masalan: *123*.", parse_mode="Markdown")
 

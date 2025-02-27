@@ -30,15 +30,21 @@ dp = Dispatcher(storage=storage)
 # Global o‘zgaruvchi sifatida kanal ID’sini saqlash
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@DefaultChannel")  # .env dan olish mumkin
 
+# Zarur kanallar ro‘yxati (o‘zingiz kanal ID’larini qo‘shing)
+REQUIRED_CHANNELS = [
+    "-1001927486162",  # Misol: avvalgi kiritgan kanal ID
+    "-1002408655930",  # Boshqa kanal ID
+    "@i_farohiddin"    # Username sifatida kanal
+]
+
 # Yangi davlatlar (states) aniqlash
 class AdminStates(StatesGroup):
-    waiting_for_movie_link = State()  # Kino manzili uchun
-    waiting_for_movie_name = State()  # Kino nomi uchun
-    waiting_for_movie_file = State()  # Eski holat, lekin endi kerak emas (faqat link)
+    waiting_for_movie_link = State()
+    waiting_for_movie_name = State()
     waiting_for_edit_movie = State()
     waiting_for_delete_movie = State()
-    waiting_for_channel_link = State()  # Kanal linki uchun
-    waiting_for_set_channel = State()  # Kanal ID’si uchun
+    waiting_for_channel_link = State()
+    waiting_for_set_channel = State()
     waiting_for_delete_channel = State()
     waiting_for_edit_channel = State()
 
@@ -74,7 +80,7 @@ async def get_movies_list(bot: Bot, user_id: int):
 async def get_channels_list():
     return f"🌐 *Hozirgi Kanal:* `{CHANNEL_ID}`"
 
-# /start komandasiga javob (oddiy foydalanuvchi va admin uchun, dizaynli inline keyboard)
+# /start komandasiga javob (oddiy foydalanuvchi va admin uchun, kanallar ro‘yxati button’lar bilan)
 @dp.message(Command(commands=["start"]))
 async def cmd_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -102,16 +108,20 @@ async def cmd_start(message: Message, state: FSMContext):
         ])
         await message.answer("*Salom, Admin! Quyidagi opsiyalardan birini tanlang:*\n\nBotim bilan ishlayotganingizdan xursandman! 🎉", reply_markup=keyboard, parse_mode="Markdown")
     else:
-        # Oddiy foydalanuvchi uchun estetik inline button
+        # Oddiy foydalanuvchi uchun kanallar ro‘yxatini button’lar bilan ko‘rsatish
         await message.answer("*Salom! Men kino botiman. Avval kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
-        if await check_membership(message, bot, None, CHANNEL_ID):
+        if all(await check_membership(message, bot, None, channel) for channel in REQUIRED_CHANNELS):
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
             ])
             await message.answer("*Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID-sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
             await state.set_state(MovieStates.waiting_for_movie_id)
         else:
-            await message.answer("*Iltimos, avval barcha zarur kanallarga a'zo bo'ling!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", parse_mode="Markdown")
+            # Kanallar ro‘yxatini button’lar sifatida ko‘rsatish
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in REQUIRED_CHANNELS]
+            ])
+            await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta /start ni bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler'lar admin uchun
 @dp.callback_query(lambda c: c.data == "add_movie")
