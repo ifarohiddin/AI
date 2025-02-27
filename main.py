@@ -1,6 +1,7 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message
+from aiogram.fsm.state import State, StatesGroup  # StatesGroup va State import qo'shildi
 from movie_request import request_movie, MovieStates
 from send_movie import send_movie
 from admin_panel import add_movie, edit_movie, delete_movie, set_channel, delete_channel, edit_channel
