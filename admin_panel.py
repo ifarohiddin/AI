@@ -116,7 +116,8 @@ async def set_channel(message: Message, bot: Bot, state: FSMContext):
         return
 
     channel_id = args[0]
-    bot.data["channel_id"] = channel_id
+    global CHANNEL_ID
+    CHANNEL_ID = channel_id
     await message.reply(f"Kanal o'zgartirildi: {channel_id}")
 
 # Kanal o'chirish
@@ -127,8 +128,9 @@ async def delete_channel(message: Message, bot: Bot, state: FSMContext):
         return
 
     channel_id = args[0]
-    if "channel_id" in bot.data and bot.data["channel_id"] == channel_id:
-        del bot.data["channel_id"]
+    global CHANNEL_ID
+    if CHANNEL_ID == channel_id:
+        CHANNEL_ID = "@DefaultChannel"
         await message.reply(f"Kanal {channel_id} o'chirildi!")
     else:
         await message.reply("Bunday kanal topilmadi!")
@@ -141,8 +143,9 @@ async def edit_channel(message: Message, bot: Bot, state: FSMContext):
         return
 
     old_channel_id, new_channel_id = args[0], args[1]
-    if "channel_id" in bot.data and bot.data["channel_id"] == old_channel_id:
-        bot.data["channel_id"] = new_channel_id
+    global CHANNEL_ID
+    if CHANNEL_ID == old_channel_id:
+        CHANNEL_ID = new_channel_id
         await message.reply(f"Kanal {old_channel_id} yangi ID {new_channel_id} bilan tahrirlandi!")
     else:
         await message.reply("Bunday kanal topilmadi!")
