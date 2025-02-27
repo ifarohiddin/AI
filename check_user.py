@@ -21,7 +21,7 @@ async def check_membership(update: Union[Update, types.Message], bot: Bot, state
         else:
             if isinstance(update, types.Message):
                 await update.reply(
-                    f"*❌ Iltimos, avval {channel_id} kanaliga a'zo bo'ling!*\n\nKanalga a'zo bo‘lganingizdan keyin bot bilan davom eting! 🚀", parse_mode="Markdown"
+                    f"*❌ Iltimos, avval {channel_id} reklamma kanaliga a'zo bo'ling!*\n\nKanalga a'zo bo‘lganingizdan keyin bot bilan davom eting! 🚀", parse_mode="Markdown"
                 )
             return False
     except Exception as e:
@@ -29,7 +29,7 @@ async def check_membership(update: Union[Update, types.Message], bot: Bot, state
             await update.reply("*⚠️ Xatolik yuz berdi. Kanalni tekshirib ko'ring.*\n\nBot bilan aloqada muammolar bo‘lishi mumkin, loglarni tekshiring.", parse_mode="Markdown")
         return False
 
-# Ma'lumotlar bazasidan kanallarni olish funksiyasi
+# Ma'lumotlar bazasidan reklamma kanallarni olish funksiyasi
 async def get_channels_from_db(bot: Bot) -> list:
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
@@ -45,7 +45,7 @@ async def get_channels_from_db(bot: Bot) -> list:
         sslmode='require'
     )
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM channels")
+    cursor.execute("SELECT id FROM advertisement_channels")
     channels = [row[0] for row in cursor.fetchall()]
     conn.close()
     return channels

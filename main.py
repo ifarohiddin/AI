@@ -76,8 +76,8 @@ async def get_movies_list(bot: Bot, user_id: int):
         response += f"📌 ID: `{movie[0]}` | Nom: *{movie[1]}* | Link: `{movie[2]}`\n"
     return response
 
-# Kanallar ro‘yxatini olish funksiyasi (ma'lumotlar bazasidan)
-async def get_channels_list(bot: Bot) -> list:
+# Reklamma kanallarni olish funksiyasi (ma'lumotlar bazasidan)
+async def get_advertisement_channels_list(bot: Bot) -> list:
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         return []
@@ -92,13 +92,13 @@ async def get_channels_list(bot: Bot) -> list:
         sslmode='require'
     )
     cursor = conn.cursor()
-    cursor.execute("SELECT name, id, link FROM channels")
+    cursor.execute("SELECT name, id, link FROM advertisement_channels")
     channels = cursor.fetchall()
     conn.close()
 
     return channels  # Hamma kanal ma'lumotlarini (nom, ID, link) qaytaradi
 
-# /start komandasiga javob (foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi kanallar ro‘yxati)
+# /start komandasiga javob (foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi reklamma kanallari ro‘yxati)
 @dp.message(Command(commands=["start"]))
 async def cmd_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -126,11 +126,11 @@ async def cmd_start(message: Message, state: FSMContext):
         ])
         await message.answer("*Salom, Admin! Quyidagi opsiyalardan birini tanlang:*\n\nBotim bilan ishlayotganingizdan xursandman! 🎉", reply_markup=keyboard, parse_mode="Markdown")
     else:
-        # Oddiy foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi kanallar ro‘yxati
-        await message.answer("*Salom, hurmatli foydalanuvchi! Men kino botiman. Avval kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
-        channels = await get_channels_list(bot)
+        # Oddiy foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi reklamma kanallari ro‘yxati
+        await message.answer("*Salom, hurmatli foydalanuvchi! Men kino botiman. Avval reklamma kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
+        channels = await get_advertisement_channels_list(bot)
         if not channels:
-            await message.answer("*⚠️ Hozircha hech qanday kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
+            await message.answer("*⚠️ Hozircha hech qanday reklamma kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
             return
 
         # Foydalanuvchining a’zoligini tekshirish
@@ -142,15 +142,15 @@ async def cmd_start(message: Message, state: FSMContext):
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
             ])
-            await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
+            await message.answer("*✅ Siz barcha zarur reklamma kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
             await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
         else:
-            # Faqat a’zo bo‘lmagan kanallarni button’lar bilan ko‘rsatish
+            # Faqat a’zo bo‘lmagan reklamma kanallarni button’lar bilan ko‘rsatish
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=channel[2] if channel[2].startswith("https://t.me/") else f"https://t.me/{channel[1].replace('@', '') if channel[1].startswith('@') else channel[1]}")]
                 for channel in non_member_channels
             ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
-            await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
+            await message.answer("*Iltimos, quyidagi reklamma kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler’lar (foydalanuvchi uchun tekshirish)
 @dp.callback_query(lambda c: c.data == "check_membership")
@@ -159,10 +159,10 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
     user_id = callback_query.from_user.id
     message = callback_query.message
 
-    # Ma'lumotlar bazasidan kanallarni olish
-    channels = await get_channels_list(bot)
+    # Ma'lumotlar bazasidan reklamma kanallarni olish
+    channels = await get_advertisement_channels_list(bot)
     if not channels:
-        await message.answer("*⚠️ Hozircha hech qanday kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
+        await message.answer("*⚠️ Hozircha hech qanday reklamma kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
         return
 
     # Asinxron chaqiruvlarni to‘g‘ri boshqarish
@@ -172,16 +172,16 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
         ])
-        await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
+        await message.answer("*✅ Siz barcha zarur reklamma kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
         await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
     else:
-        # Faqat a’zo bo‘lmagan kanallarni button’lar bilan qayta ko‘rsatish
+        # Faqat a’zo bo‘lmagan reklamma kanallarni button’lar bilan qayta ko‘rsatish
         non_member_channels = [channel for i, channel in enumerate(channels) if not membership_results[i]]
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=channel[2] if channel[2].startswith("https://t.me/") else f"https://t.me/{channel[1].replace('@', '') if channel[1].startswith('@') else channel[1]}")]
             for channel in non_member_channels
         ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
-        await message.answer("*❌ Siz hali barcha kanallarga a'zo emassiz! Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta tekshiring!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
+        await message.answer("*❌ Siz hali barcha reklamma kanallarga a'zo emassiz! Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta tekshiring!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler'lar admin uchun
 @dp.callback_query(lambda c: c.data == "add_movie")
@@ -229,8 +229,8 @@ async def process_view_movies(callback_query: types.CallbackQuery, state: FSMCon
 @dp.callback_query(lambda c: c.data == "view_channels")
 async def process_view_channels(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    channels_list = await get_channels_list(bot)
-    response = "🌐 *Kanallar Ro‘yxati:*\n" + "\n".join([f"📋 Nom: *{channel[0]}* | ID: `{channel[1]}` | Link: *{channel[2]}*" for channel in channels_list])
+    channels_list = await get_advertisement_channels_list(bot)
+    response = "🌐 *Reklamma Kanallar Ro‘yxati:*\n" + "\n".join([f"📋 Nom: *{channel[0]}* | ID: `{channel[1]}` | Link: *{channel[2]}*" for channel in channels_list])
     await bot.send_message(callback_query.from_user.id, response, parse_mode="Markdown")
 
 # Admin uchun yangi handler'lar
