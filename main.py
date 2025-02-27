@@ -97,7 +97,7 @@ async def process_edit_channel(callback_query: types.CallbackQuery, state: FSMCo
     await state.set_state(AdminStates.waiting_for_edit_channel)
 
 # Admin uchun yangi handler'lar
-@dp.message(lambda message: message.text and "waiting_for_movie_file" in (await state.get_state()) and message.from_user.id in [5358180855])
+@dp.message(AdminStates.waiting_for_movie_file, lambda message: message.from_user.id in [5358180855])
 async def handle_add_movie_file(message: Message, state: FSMContext):
     if message.document:
         file = await message.document.get_file()
@@ -108,7 +108,7 @@ async def handle_add_movie_file(message: Message, state: FSMContext):
     else:
         await message.answer("Iltimos, kino faylini yuboring!")
 
-@dp.message(lambda message: message.text and "waiting_for_edit_movie" in (await state.get_state()) and message.from_user.id in [5358180855])
+@dp.message(AdminStates.waiting_for_edit_movie, lambda message: message.from_user.id in [5358180855])
 async def handle_edit_movie(message: Message, state: FSMContext):
     args = message.text.split()
     if len(args) < 3 or not args[0].startswith("/edit_movie"):
@@ -119,7 +119,7 @@ async def handle_edit_movie(message: Message, state: FSMContext):
     await edit_movie(message, bot, state)
     await state.clear()
 
-@dp.message(lambda message: message.text and "waiting_for_delete_movie" in (await state.get_state()) and message.from_user.id in [5358180855])
+@dp.message(AdminStates.waiting_for_delete_movie, lambda message: message.from_user.id in [5358180855])
 async def handle_delete_movie(message: Message, state: FSMContext):
     args = message.text.split()
     if not args or not args[0].startswith("/delete_movie"):
@@ -130,7 +130,7 @@ async def handle_delete_movie(message: Message, state: FSMContext):
     await delete_movie(message, bot, state)
     await state.clear()
 
-@dp.message(lambda message: message.text and "waiting_for_set_channel" in (await state.get_state()) and message.from_user.id in [5358180855])
+@dp.message(AdminStates.waiting_for_set_channel, lambda message: message.from_user.id in [5358180855])
 async def handle_set_channel(message: Message, state: FSMContext):
     args = message.text.split()
     if not args or not args[0].startswith("/set_channel"):
@@ -141,7 +141,7 @@ async def handle_set_channel(message: Message, state: FSMContext):
     await set_channel(message, bot, state)
     await state.clear()
 
-@dp.message(lambda message: message.text and "waiting_for_delete_channel" in (await state.get_state()) and message.from_user.id in [5358180855])
+@dp.message(AdminStates.waiting_for_delete_channel, lambda message: message.from_user.id in [5358180855])
 async def handle_delete_channel(message: Message, state: FSMContext):
     args = message.text.split()
     if not args:
@@ -152,7 +152,7 @@ async def handle_delete_channel(message: Message, state: FSMContext):
     await delete_channel(message, bot, state)
     await state.clear()
 
-@dp.message(lambda message: message.text and "waiting_for_edit_channel" in (await state.get_state()) and message.from_user.id in [5358180855])
+@dp.message(AdminStates.waiting_for_edit_channel, lambda message: message.from_user.id in [5358180855])
 async def handle_edit_channel(message: Message, state: FSMContext):
     args = message.text.split()
     if len(args) < 2:
