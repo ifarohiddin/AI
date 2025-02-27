@@ -21,6 +21,11 @@ bot = Bot(token=os.getenv("BOT_TOKEN"))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+# /start komandasiga javob
+@dp.message(Command(commands=["start"]))
+async def cmd_start(update: types.Message):
+    await update.answer("Salom! Men kino botiman. /get_movie komandasi bilan kino so‘rov qiling!")
+
 # Handler'lar
 dp.message.register(request_movie, Command(commands=["get_movie"]))
 dp.message.register(send_movie, MovieStates.waiting_for_movie_id)
