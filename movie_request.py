@@ -11,5 +11,5 @@ async def request_movie(update: Update, bot: Bot, state: FSMContext):
     if not await check_membership(update, bot, state):
         return
 
-    await update.message.reply("*🎬 Iltimos, kino ID-sini kiriting:*\n\nMasalan: *123* — bu kino ID’si bo‘lishi mumkin!", parse_mode="Markdown")
+    await update.message.reply("*🎬 Iltimos, kino ID’sini kiriting:*\n\nMasalan: *123* — bu kino ID’si bo‘lishi mumkin!", parse_mode="Markdown")
     await state.set_state(MovieStates.waiting_for_movie_id)

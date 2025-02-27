@@ -50,6 +50,9 @@ class AdminStates(StatesGroup):
     waiting_for_edit_channel = State()
     waiting_for_delete_movie = State()  # Kino o‘chirish uchun yangi davlat
 
+class UserStates(StatesGroup):
+    waiting_for_movie_id = State()  # Foydalanuvchi uchun kino ID’si
+
 # Kinolar ro‘yxatini olish funksiyasi
 async def get_movies_list(bot: Bot, user_id: int):
     db_url = os.getenv("DATABASE_URL")
@@ -106,7 +109,7 @@ async def get_channels_list(bot: Bot):
         response += f"📋 ID: `{channel[0]}` | Link: *{channel[1]}*\n"
     return response
 
-# /start komandasiga javob (oddiy foydalanuvchi va admin uchun, kanallar ro‘yxati button’lar bilan)
+# /start komandasiga javob (foydalanuvchi uchun salomlashish va kanallar ro‘yxati)
 @dp.message(Command(commands=["start"]))
 async def cmd_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -134,22 +137,36 @@ async def cmd_start(message: Message, state: FSMContext):
         ])
         await message.answer("*Salom, Admin! Quyidagi opsiyalardan birini tanlang:*\n\nBotim bilan ishlayotganingizdan xursandman! 🎉", reply_markup=keyboard, parse_mode="Markdown")
     else:
-        # Oddiy foydalanuvchi uchun kanallar ro‘yxatini button’lar bilan ko‘rsatish
-        await message.answer("*Salom! Men kino botiman. Avval kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
-        # Asinxron chaqiruvlarni to‘g‘ri boshqarish
-        membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in REQUIRED_CHANNELS])
-        if all(membership_results):
-            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
-            ])
-            await message.answer("*Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID-sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
-            await state.set_state(MovieStates.waiting_for_movie_id)
-        else:
-            # Kanallar ro‘yxatini button’lar sifatida ko‘rsatish
-            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-                [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in REQUIRED_CHANNELS]
-            ])
-            await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta /start ni bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
+        # Oddiy foydalanuvchi uchun salomlashish va kanallar ro‘yxati
+        await message.answer("*Salom, hurmatli foydalanuvchi! Men kino botiman. Avval kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
+        # Kanallar ro‘yxatini button’lar bilan ko‘rsatish
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in REQUIRED_CHANNELS],
+            [types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]
+        ])
+        await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
+
+# Callback handler’lar (foydalanuvchi uchun tekshirish)
+@dp.callback_query(lambda c: c.data == "check_membership")
+async def process_check_membership(callback_query: types.CallbackQuery, state: FSMContext):
+    await bot.answer_callback_query(callback_query.id)
+    user_id = callback_query.from_user.id
+    message = callback_query.message
+
+    # Asinxron chaqiruvlarni to‘g‘ri boshqarish
+    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in REQUIRED_CHANNELS])
+    if all(membership_results):
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
+        ])
+        await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID-sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
+        await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
+    else:
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in REQUIRED_CHANNELS],
+            [types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]
+        ])
+        await message.answer("*❌ Siz hali barcha kanallarga a'zo emassiz! Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta tekshiring!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler'lar admin uchun
 @dp.callback_query(lambda c: c.data == "add_movie")
@@ -321,9 +338,18 @@ async def handle_edit_channel(message: Message, state: FSMContext):
         await message.answer("*❌ Bunday kanal topilmadi!*\n\nEski kanal ID’sini qayta tekshirib ko‘ring.", parse_mode="Markdown")
     await state.clear()
 
+# Foydalanuvchi va admin uchun kino ID’si handler’i
+@dp.message(UserStates.waiting_for_movie_id, lambda message: True)  # Har bir foydalanuvchi uchun, admin ham
+async def handle_movie_id(message: Message, state: FSMContext):
+    movie_id = message.text
+    if not movie_id.isdigit():
+        await message.answer("*❌ Iltimos, to‘g‘ri kino ID’sini kiriting!*\n\nMasalan: *1*", parse_mode="Markdown")
+        return
+    await send_movie(message, bot, state, movie_id)
+    await state.clear()
+
 # Handler'lar
 dp.message.register(request_movie, Command(commands=["get_movie"]))
-dp.message.register(send_movie, MovieStates.waiting_for_movie_id)
 dp.message.register(add_movie, Command(commands=["add_movie"]))
 dp.message.register(edit_movie, Command(commands=["edit_movie"]))
 dp.message.register(delete_movie, Command(commands=["delete_movie"]))

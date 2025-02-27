@@ -8,11 +8,11 @@ from urllib.parse import urlparse
 
 load_dotenv()
 
-async def send_movie(update: Update, bot: Bot, state: FSMContext):
-    movie_id = update.message.text
+async def send_movie(update: Union[Update, Message], bot: Bot, state: FSMContext, movie_id: str):
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        await update.message.reply("*❌ Ma'lumotlar bazasi ulanishi topilmadi!*\n\nRailway’dagi DATABASE_URL’ni tekshirib ko‘ring.", parse_mode="Markdown")
+        if isinstance(update, Message):
+            await update.reply("*❌ Ma'lumotlar bazasi ulanishi topilmadi!*\n\nRailway’dagi DATABASE_URL’ni tekshirib ko‘ring.", parse_mode="Markdown")
         return
 
     url = urlparse(db_url)
@@ -31,19 +31,32 @@ async def send_movie(update: Update, bot: Bot, state: FSMContext):
 
     if movie:
         name, link = movie
-        # Telegram’dan video faylini olish va yuborish
+        # Telegram’dan video faylini olish va yuborish (file_id sifatida)
         try:
             file_id = link  # Ma'lumotlar bazasidagi link faqat file_id sifatida saqlanadi
-            await bot.send_video(
-                chat_id=update.message.chat.id,
-                video=file_id,
-                caption=f"*🎥 Kino:* *{name}*\n\nKino bilan zavqlaning, rahmat! 🍿",
-                parse_mode="Markdown"
-            )
+            if isinstance(update, Message):
+                await bot.send_video(
+                    chat_id=update.chat.id,
+                    video=file_id,
+                    caption=f"*🎥 Kino:* *{name}*\n\nKino bilan zavqlaning, rahmat! 🍿",
+                    parse_mode="Markdown"
+                )
+            else:
+                await bot.send_video(
+                    chat_id=update.message.chat.id,
+                    video=file_id,
+                    caption=f"*🎥 Kino:* *{name}*\n\nKino bilan zavqlaning, rahmat! 🍿",
+                    parse_mode="Markdown"
+                )
         except Exception as e:
-            await update.message.reply("*❌ Video yuborishda xatolik yuz berdi!*\n\nLinkni tekshirib ko‘ring yoki admin bilan bog‘laning.", parse_mode="Markdown")
+            if isinstance(update, Message):
+                await update.reply("*❌ Video yuborishda xatolik yuz berdi!*\n\nLinkni tekshirib ko‘ring yoki admin bilan bog‘laning.", parse_mode="Markdown")
+            else:
+                await update.message.reply("*❌ Video yuborishda xatolik yuz berdi!*\n\nLinkni tekshirib ko‘ring yoki admin bilan bog‘laning.", parse_mode="Markdown")
     else:
-        await update.message.reply("*❌ Bunday ID bilan kino topilmadi!*\n\nKino ID’sini qayta tekshirib ko‘ring, masalan: *123*.", parse_mode="Markdown")
+        if isinstance(update, Message):
+            await update.reply("*❌ Bunday ID bilan kino topilmadi!*\n\nKino ID’sini qayta tekshirib ko‘ring, masalan: *123*.", parse_mode="Markdown")
+        else:
+            await update.message.reply("*❌ Bunday ID bilan kino topilmadi!*\n\nKino ID’sini qayta tekshirib ko‘ring, masalan: *123*.", parse_mode="Markdown")
 
     conn.close()
-    await state.clear()
