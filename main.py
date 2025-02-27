@@ -32,10 +32,13 @@ CHANNEL_ID = os.getenv("CHANNEL_ID", "@DefaultChannel")  # .env dan olish mumkin
 
 # Yangi davlatlar (states) aniqlash
 class AdminStates(StatesGroup):
-    waiting_for_movie_file = State()
+    waiting_for_movie_link = State()  # Kino manzili uchun
+    waiting_for_movie_name = State()  # Kino nomi uchun
+    waiting_for_movie_file = State()  # Eski holat, lekin endi kerak emas (faqat link)
     waiting_for_edit_movie = State()
     waiting_for_delete_movie = State()
-    waiting_for_set_channel = State()
+    waiting_for_channel_link = State()  # Kanal linki uchun
+    waiting_for_set_channel = State()  # Kanal ID’si uchun
     waiting_for_delete_channel = State()
     waiting_for_edit_channel = State()
 
@@ -114,8 +117,8 @@ async def cmd_start(message: Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == "add_movie")
 async def process_add_movie(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*🎬 Kino faylini yuboring (caption orqali nom kiriting):*\n\nFaylni yuborishdan oldin caption’da nomni kiriting, masalan: *Qahramonlar Filmi*!", parse_mode="Markdown")
-    await state.set_state(AdminStates.waiting_for_movie_file)
+    await bot.send_message(callback_query.from_user.id, "*🎬 Kino manzilini (boshqa kanaldan link sifatida) kiriting:*\n\nMasalan: *https://t.me/example_channel/123*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_movie_link)
 
 @dp.callback_query(lambda c: c.data == "edit_movie")
 async def process_edit_movie(callback_query: types.CallbackQuery, state: FSMContext):
@@ -132,8 +135,8 @@ async def process_delete_movie(callback_query: types.CallbackQuery, state: FSMCo
 @dp.callback_query(lambda c: c.data == "set_channel")
 async def process_set_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*🌐 Yangi kanal ID-sini kiriting (format: /set_channel <kanal_ID>):*\n\nMasalan: */set_channel @example_channel* yoki */set_channel -1001234567890*", parse_mode="Markdown")
-    await state.set_state(AdminStates.waiting_for_set_channel)
+    await bot.send_message(callback_query.from_user.id, "*🌐 Kanal linkini kiriting:*\n\nMasalan: *https://t.me/example_channel*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_channel_link)
 
 @dp.callback_query(lambda c: c.data == "delete_channel")
 async def process_delete_channel(callback_query: types.CallbackQuery, state: FSMContext):
@@ -160,17 +163,28 @@ async def process_view_channels(callback_query: types.CallbackQuery, state: FSMC
     await bot.send_message(callback_query.from_user.id, channels_list, parse_mode="Markdown")
 
 # Admin uchun yangi handler'lar
-@dp.message(AdminStates.waiting_for_movie_file, lambda message: message.from_user.id in [5358180855])
-async def handle_add_movie_file(message: Message, state: FSMContext):
-    if message.document:
-        file = await message.document.get_file()
-        file_url = file.file_path
-        name = message.caption or "Nomsiz kino"
-        await add_movie(message, bot, state)
-        await message.answer("*🎬 Kino muvaffaqiyatli qo'shildi! ID: {movie_id}*\n\nRahmat, yangi kino uchun! 🎥", parse_mode="Markdown")
+@dp.message(AdminStates.waiting_for_movie_link, lambda message: message.from_user.id in [5358180855])
+async def handle_movie_link(message: Message, state: FSMContext):
+    movie_link = message.text
+    if not movie_link.startswith("https://t.me/"):
+        await message.answer("*❌ Iltimos, to‘g‘ri kino manzilini (link) kiriting!*\n\nMasalan: *https://t.me/example_channel/123*", parse_mode="Markdown")
+        return
+    await state.update_data(movie_link=movie_link)
+    await message.answer("*📎 Kino nomini kiriting:*\n\nMasalan: *Qahramonlar Filmi*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_movie_name)
+
+@dp.message(AdminStates.waiting_for_movie_name, lambda message: message.from_user.id in [5358180855])
+async def handle_movie_name(message: Message, state: FSMContext):
+    movie_name = message.text
+    user_data = await state.get_data()
+    movie_link = user_data.get("movie_link")
+    if not movie_name or not movie_link:
+        await message.answer("*❌ Kino nomi yoki manzili kiritilmagan!*\n\nQayta urinib ko‘ring.", parse_mode="Markdown")
         await state.clear()
-    else:
-        await message.answer("*❌ Iltimos, kino faylini yuboring!*\n\nFaylni caption bilan yuborishni unutmang, masalan: *Qahramonlar Filmi*.", parse_mode="Markdown")
+        return
+    await add_movie(message, bot, state, movie_name, movie_link)
+    await message.answer(f"*🎬 Kino muvaffaqiyatli qo'shildi! Nom: {movie_name} | Link: {movie_link}*\n\nRahmat, yangi kino uchun! 🎥", parse_mode="Markdown")
+    await state.clear()
 
 @dp.message(AdminStates.waiting_for_edit_movie, lambda message: message.from_user.id in [5358180855])
 async def handle_edit_movie(message: Message, state: FSMContext):
@@ -196,25 +210,36 @@ async def handle_delete_movie(message: Message, state: FSMContext):
     await message.answer(f"*🗑️ Kino (ID: {movie_id}) muvaffaqiyatli o'chirildi!*\n\nRahmat, buni uchun!", parse_mode="Markdown")
     await state.clear()
 
+@dp.message(AdminStates.waiting_for_channel_link, lambda message: message.from_user.id in [5358180855])
+async def handle_channel_link(message: Message, state: FSMContext):
+    channel_link = message.text
+    if not channel_link.startswith("https://t.me/"):
+        await message.answer("*❌ Iltimos, to‘g‘ri kanal linkini kiriting!*\n\nMasalan: *https://t.me/example_channel*", parse_mode="Markdown")
+        return
+    await state.update_data(channel_link=channel_link)
+    await message.answer("*🌐 Kanal ID’sini kiriting:*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_set_channel)
+
 @dp.message(AdminStates.waiting_for_set_channel, lambda message: message.from_user.id in [5358180855])
 async def handle_set_channel(message: Message, state: FSMContext):
-    args = message.text.split()
-    if not args or not args[0].startswith("/set_channel"):
-        await message.answer("*❌ Iltimos, /set_channel <kanal ID> kiriting!*\n\nMasalan: */set_channel @example_channel*", parse_mode="Markdown")
+    channel_id = message.text
+    user_data = await state.get_data()
+    channel_link = user_data.get("channel_link")
+    if not channel_id or not channel_link:
+        await message.answer("*❌ Kanal ID yoki linki kiritilmagan!*\n\nQayta urinib ko‘ring.", parse_mode="Markdown")
         await state.clear()
         return
-    channel_id = args[1]
     global CHANNEL_ID
     CHANNEL_ID = channel_id
     await set_channel(message, bot, state)
-    await message.answer(f"*🌐 Kanal muvaffaqiyatli o'zgartirildi: {channel_id}*\n\nKanalni tekshirib ko‘ring!", parse_mode="Markdown")
+    await message.answer(f"*🌐 Kanal muvaffaqiyatli o'zgartirildi: {channel_id}*\n\nKanalni tekshirib ko‘ring! Link: {channel_link}", parse_mode="Markdown")
     await state.clear()
 
 @dp.message(AdminStates.waiting_for_delete_channel, lambda message: message.from_user.id in [5358180855])
 async def handle_delete_channel(message: Message, state: FSMContext):
     args = message.text.split()
     if not args:
-        await message.answer("*❌ Iltimos, o'chirish uchun kanal ID-sini kiriting!*\n\nMasalan: *@example_channel*", parse_mode="Markdown")
+        await message.answer("*❌ Iltimos, o'chirish uchun kanal ID-sini kiriting!*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
         await state.clear()
         return
     channel_id = args[0]

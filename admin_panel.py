@@ -17,38 +17,32 @@ async def admin_check(message: Message, bot: Bot, state: FSMContext) -> bool:
         return False
     return True
 
-# Kino qo'shish
-async def add_movie(message: Message, bot: Bot, state: FSMContext):
+# Kino qo'shish (yangi: link va nom bilan)
+async def add_movie(message: Message, bot: Bot, state: FSMContext, movie_name: str, movie_link: str):
     if not await admin_check(message, bot, state):
         return
-    if message.document:
-        file = await message.document.get_file()
-        file_url = file.file_path
-        name = message.caption or "Nomsiz kino"
 
-        db_url = os.getenv("DATABASE_URL")
-        if not db_url:
-            await message.reply("*❌ Ma'lumotlar bazasi ulanishi topilmadi!*\n\nRailway’dagi DATABASE_URL’ni tekshirib ko‘ring.", parse_mode="Markdown")
-            return
-        
-        url = urlparse(db_url)
-        conn = psycopg2.connect(
-            database=url.path[1:],
-            user=url.username,
-            password=url.password,
-            host=url.hostname,
-            port=url.port,
-            sslmode='require'
-        )
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO movies (name, link) VALUES (%s, %s) RETURNING id", (name, file_url))
-        movie_id = cursor.fetchone()[0]
-        conn.commit()
-        conn.close()
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        await message.reply("*❌ Ma'lumotlar bazasi ulanishi topilmadi!*\n\nRailway’dagi DATABASE_URL’ni tekshirib ko‘ring.", parse_mode="Markdown")
+        return
+    
+    url = urlparse(db_url)
+    conn = psycopg2.connect(
+        database=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port,
+        sslmode='require'
+    )
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO movies (name, link) VALUES (%s, %s) RETURNING id", (movie_name, movie_link))
+    movie_id = cursor.fetchone()[0]
+    conn.commit()
+    conn.close()
 
-        await message.reply(f"*🎬 Kino qo'shildi! ID: {movie_id}*\n\nRahmat, yangi kino uchun! 🎥", parse_mode="Markdown")
-    else:
-        await message.reply("*❌ Iltimos, kino faylini yuboring!*\n\nFaylni caption bilan yuborishni unutmang, masalan: *Qahramonlar Filmi*.", parse_mode="Markdown")
+    await message.reply(f"*🎬 Kino muvaffaqiyatli qo'shildi! Nom: {movie_name} | Link: {movie_link}*\n\nRahmat, yangi kino uchun! 🎥", parse_mode="Markdown")
 
 # Kino tahrirlash
 async def edit_movie(message: Message, bot: Bot, state: FSMContext):
@@ -56,7 +50,7 @@ async def edit_movie(message: Message, bot: Bot, state: FSMContext):
         return
     args = message.text.split()[1:] if message.text else []
     if len(args) < 2:
-        await message.reply("*❌ Iltimos, /edit_movie <ID> <yangi nom> yoki <yangi link> kiriting!*\n\nMasalan: */edit_movie 1 Yangi Kino*", parse_mode="Markdown")
+        await message.reply("*❌ Iltimos, /edit_movie <ID> <yangi nom/link> kiriting!*\n\nMasalan: */edit_movie 1 Yangi Kino*", parse_mode="Markdown")
         return
 
     movie_id, new_value = args[0], " ".join(args[1:])
@@ -114,7 +108,7 @@ async def delete_movie(message: Message, bot: Bot, state: FSMContext):
 
     await message.reply(f"*🗑️ Kino (ID: {movie_id}) muvaffaqiyatli o'chirildi!*\n\nRahmat, buni uchun!", parse_mode="Markdown")
 
-# Kanal qo'shish/o'zgartirish
+# Kanal qo'shish/o'zgartirish (yangi: link va ID bilan)
 async def set_channel(message: Message, bot: Bot, state: FSMContext):
     if not await admin_check(message, bot, state):
         return
