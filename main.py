@@ -32,13 +32,6 @@ dp = Dispatcher(storage=storage)
 # Global o‘zgaruvchi sifatida kanal ID’sini saqlash
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@DefaultChannel")  # .env dan olish mumkin
 
-# Zarur kanallar ro‘yxati (o‘zingiz kanal ID’larini qo‘shing)
-REQUIRED_CHANNELS = [
-    "-1001927486162",  # Misol: avvalgi kiritgan kanal ID
-    "-1002408655930",  # Boshqa kanal ID
-    "@i_farohiddin"    # Username sifatida kanal
-]
-
 # Yangi davlatlar (states) aniqlash
 class AdminStates(StatesGroup):
     waiting_for_movie_link = State()
@@ -82,11 +75,11 @@ async def get_movies_list(bot: Bot, user_id: int):
         response += f"📌 ID: `{movie[0]}` | Nom: *{movie[1]}* | Link: `{movie[2]}`\n"
     return response
 
-# Kanallar ro‘yxatini olish funksiyasi
-async def get_channels_list(bot: Bot):
+# Kanallar ro‘yxatini olish funksiyasi (ma'lumotlar bazasidan)
+async def get_channels_list(bot: Bot) -> list:
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        return "Ma'lumotlar bazasi ulanishi topilmadi!"
+        return []
 
     url = urlparse(db_url)
     conn = psycopg2.connect(
@@ -102,15 +95,9 @@ async def get_channels_list(bot: Bot):
     channels = cursor.fetchall()
     conn.close()
 
-    if not channels:
-        return "Hozircha hech qanday kanal mavjud emas!"
+    return [channel[0] for channel in channels]  # Faqat ID’lar ro‘yxatini qaytaradi
 
-    response = "🌐 *Kanallar Ro‘yxati:*\n"
-    for channel in channels:
-        response += f"📋 ID: `{channel[0]}` | Link: *{channel[1]}*\n"
-    return response
-
-# /start komandasiga javob (foydalanuvchi uchun salomlashish va kanallar ro‘yxati)
+# /start komandasiga javob (foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi kanallar ro‘yxati)
 @dp.message(Command(commands=["start"]))
 async def cmd_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
@@ -138,11 +125,16 @@ async def cmd_start(message: Message, state: FSMContext):
         ])
         await message.answer("*Salom, Admin! Quyidagi opsiyalardan birini tanlang:*\n\nBotim bilan ishlayotganingizdan xursandman! 🎉", reply_markup=keyboard, parse_mode="Markdown")
     else:
-        # Oddiy foydalanuvchi uchun salomlashish va kanallar ro‘yxati
+        # Oddiy foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi kanallar ro‘yxati
         await message.answer("*Salom, hurmatli foydalanuvchi! Men kino botiman. Avval kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
+        channels = await get_channels_list(bot)
+        if not channels:
+            await message.answer("*⚠️ Hozircha hech qanday kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
+            return
+
         # Kanallar ro‘yxatini button’lar bilan ko‘rsatish
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in REQUIRED_CHANNELS],
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in channels],
             [types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]
         ])
         await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
@@ -154,8 +146,14 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
     user_id = callback_query.from_user.id
     message = callback_query.message
 
+    # Ma'lumotlar bazasidan kanallarni olish
+    channels = await get_channels_list(bot)
+    if not channels:
+        await message.answer("*⚠️ Hozircha hech qanday kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
+        return
+
     # Asinxron chaqiruvlarni to‘g‘ri boshqarish
-    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in REQUIRED_CHANNELS])
+    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in channels])
     if all(membership_results):
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
@@ -164,7 +162,7 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
     else:
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in REQUIRED_CHANNELS],
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in channels],
             [types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]
         ])
         await message.answer("*❌ Siz hali barcha kanallarga a'zo emassiz! Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta tekshiring!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
