@@ -8,7 +8,9 @@ import os
 from urllib.parse import urlparse
 
 load_dotenv()
-ADMINS = [5358180855]  # Adminlarning Telegram ID-lari
+# Admin ID’larini .env dan olish
+admin_ids_str = os.getenv("ADMIN_IDS", "5358180855")  # Standart qiymat sifatida bitta ID
+ADMINS = [int(id.strip()) for id in admin_ids_str.split(',')]  # Vergul bilan ajratilgan ID’lar ro‘yxatini olish
 
 async def admin_check(message: Message, bot: Bot, state: FSMContext) -> bool:
     user_id = message.from_user.id

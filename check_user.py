@@ -9,6 +9,10 @@ from urllib.parse import urlparse
 # Global o‘zgaruvchi sifatida kanal ID’sini saqlash
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@DefaultChannel")  # .env dan olish mumkin
 
+# Admin ID’larini .env dan olish
+admin_ids_str = os.getenv("ADMIN_IDS", "5358180855")  # Standart qiymat sifatida bitta ID
+ADMINS = [int(id.strip()) for id in admin_ids_str.split(',')]  # Vergul bilan ajratilgan ID’lar ro‘yxatini olish
+
 async def check_membership(update: Union[Update, types.Message], bot: Bot, state: Union[FSMContext, None] = None, channel_id: str = None) -> bool:
     user_id = update.from_user.id if isinstance(update, (Update, types.Message)) else update.from_user.id
     # .env yoki funksiyaga o‘tgan kanal ID’sini olish
