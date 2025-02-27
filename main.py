@@ -1,7 +1,6 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message
-from aiogram.fsm.state import State, StatesGroup  # StatesGroup va State import qo'shildi
 from movie_request import request_movie, MovieStates
 from send_movie import send_movie
 from admin_panel import add_movie, edit_movie, delete_movie, set_channel, delete_channel, edit_channel
@@ -34,6 +33,39 @@ class AdminStates(StatesGroup):
     waiting_for_delete_channel = State()
     waiting_for_edit_channel = State()
 
+# Kinolar ro‘yxatini olish funksiyasi
+async def get_movies_list(bot: Bot, user_id: int):
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return "Ma'lumotlar bazasi ulanishi topilmadi!"
+
+    url = urlparse(db_url)
+    conn = psycopg2.connect(
+        database=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port,
+        sslmode='require'
+    )
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, link FROM movies")
+    movies = cursor.fetchall()
+    conn.close()
+
+    if not movies:
+        return "Hozircha hech qanday kino mavjud emas!"
+
+    response = "Kinolar ro‘yxati:\n"
+    for movie in movies:
+        response += f"ID: {movie[0]} | Nom: {movie[1]} | Link: {movie[2]}\n"
+    return response
+
+# Kanallar ro‘yxatini olish funksiyasi
+async def get_channels_list(bot: Bot):
+    channel_id = bot.data.get("channel_id", "@DefaultChannel")
+    return f"Hozirgi kanal: {channel_id}"
+
 # /start komandasiga javob (oddiy foydalanuvchi va admin uchun)
 @dp.message(Command(commands=["start"]))
 async def cmd_start(message: Message, state: FSMContext):
@@ -46,16 +78,21 @@ async def cmd_start(message: Message, state: FSMContext):
             [types.InlineKeyboardButton(text="Kino Qo'shish", callback_data="add_movie")],
             [types.InlineKeyboardButton(text="Kino Tahrirlash", callback_data="edit_movie")],
             [types.InlineKeyboardButton(text="Kino O'chirish", callback_data="delete_movie")],
+            [types.InlineKeyboardButton(text="Kinolar Ro‘yxatini Ko‘rish", callback_data="view_movies")],
             [types.InlineKeyboardButton(text="Kanal Qo'shish", callback_data="set_channel")],
             [types.InlineKeyboardButton(text="Kanal O'chirish", callback_data="delete_channel")],
-            [types.InlineKeyboardButton(text="Kanal Tahrirlash", callback_data="edit_channel")]
+            [types.InlineKeyboardButton(text="Kanal Tahrirlash", callback_data="edit_channel")],
+            [types.InlineKeyboardButton(text="Kanallar Ro‘yxatini Ko‘rish", callback_data="view_channels")]
         ])
         await message.answer("Salom, Admin! Quyidagi opsiyalardan birini tanlang:", reply_markup=keyboard)
     else:
         # Oddiy foydalanuvchi uchun
         await message.answer("Salom! Men kino botiman. Avval kanallarga a'zo bo'ling!")
         if await check_membership(message, bot, None):
-            await message.answer("Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID-sini kiriting:")
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="Kanallar Ro‘yxatini Ko‘rish", callback_data="view_channels")]
+            ])
+            await message.answer("Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID-sini kiriting:", reply_markup=keyboard)
             await state.set_state(MovieStates.waiting_for_movie_id)
         else:
             await message.answer("Iltimos, avval barcha zarur kanallarga a'zo bo'ling!")
@@ -96,6 +133,18 @@ async def process_edit_channel(callback_query: types.CallbackQuery, state: FSMCo
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, "Kanal ID va yangi kanal ID-sini kiriting (format: /edit_channel <eski_ID> <yangi_ID>):")
     await state.set_state(AdminStates.waiting_for_edit_channel)
+
+@dp.callback_query(lambda c: c.data == "view_movies")
+async def process_view_movies(callback_query: types.CallbackQuery, state: FSMContext):
+    await bot.answer_callback_query(callback_query.id)
+    movies_list = await get_movies_list(bot, callback_query.from_user.id)
+    await bot.send_message(callback_query.from_user.id, movies_list)
+
+@dp.callback_query(lambda c: c.data == "view_channels")
+async def process_view_channels(callback_query: types.CallbackQuery, state: FSMContext):
+    await bot.answer_callback_query(callback_query.id)
+    channels_list = await get_channels_list(bot)
+    await bot.send_message(callback_query.from_user.id, channels_list)
 
 # Admin uchun yangi handler'lar
 @dp.message(AdminStates.waiting_for_movie_file, lambda message: message.from_user.id in [5358180855])
