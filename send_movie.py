@@ -1,10 +1,10 @@
 from aiogram import Bot, types
-from aiogram.types import Update
+from aiogram.types import Update, Message
 from aiogram.fsm.context import FSMContext
 import psycopg2
 from dotenv import load_dotenv
 import os
-from urllib.parse import urlparse  # Yangilangan import
+from urllib.parse import urlparse
 
 load_dotenv()
 
@@ -12,7 +12,7 @@ async def send_movie(update: Update, bot: Bot, state: FSMContext):
     movie_id = update.message.text
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+        await update.message.reply("Ma'lumotlar bazasi ulanishi topilmadi!")
         return
 
     url = urlparse(db_url)
@@ -21,7 +21,8 @@ async def send_movie(update: Update, bot: Bot, state: FSMContext):
         user=url.username,
         password=url.password,
         host=url.hostname,
-        port=url.port
+        port=url.port,
+        sslmode='require'
     )
     cursor = conn.cursor()
 
@@ -30,9 +31,9 @@ async def send_movie(update: Update, bot: Bot, state: FSMContext):
 
     if movie:
         name, link = movie
-        await update.message.reply_text(f"Kino: {name}\nLink: {link}")
+        await update.message.reply(f"Kino: {name}\nLink: {link}")
     else:
-        await update.message.reply_text("Bunday ID bilan kino topilmadi!")
+        await update.message.reply("Bunday ID bilan kino topilmadi!")
 
     conn.close()
     await state.clear()

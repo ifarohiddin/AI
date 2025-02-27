@@ -10,7 +10,7 @@ def init_db():
     if not db_url:
         raise ValueError("DATABASE_URL environment variable is not set! Please check your Railway Variables.")
 
-    print(f"Attempting to connect with DATABASE_URL: {db_url}")  # Debugging
+    print(f"Attempting to connect with DATABASE_URL: {db_url}")
     url = urlparse(db_url)
     conn = psycopg2.connect(
         database=url.path[1:],
@@ -18,7 +18,7 @@ def init_db():
         password=url.password,
         host=url.hostname,
         port=url.port,
-        sslmode='require'  # SSL ni majburiy qilish
+        sslmode='require'
     )
     cursor = conn.cursor()
     cursor.execute("""

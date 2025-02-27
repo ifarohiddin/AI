@@ -1,11 +1,11 @@
 from aiogram import Bot, types
-from aiogram.types import Update
+from aiogram.types import Update, Message
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 import psycopg2
 from dotenv import load_dotenv
 import os
-from urllib.parse import urlparse  # Yangilangan import
+from urllib.parse import urlparse
 
 load_dotenv()
 ADMINS = [123456789]  # Adminlarning Telegram ID-lari
@@ -13,7 +13,7 @@ ADMINS = [123456789]  # Adminlarning Telegram ID-lari
 async def admin_check(update: Update, bot: Bot, state: FSMContext) -> bool:
     user_id = update.message.from_user.id
     if user_id not in ADMINS:
-        await update.message.reply_text("Sizda admin huquqlari yo'q!")
+        await update.message.reply("Sizda admin huquqlari yo'q!")
         return False
     return True
 
@@ -29,7 +29,7 @@ async def add_movie(update: Update, bot: Bot, state: FSMContext):
 
         db_url = os.getenv("DATABASE_URL")
         if not db_url:
-            await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+            await update.message.reply("Ma'lumotlar bazasi ulanishi topilmadi!")
             return
         
         url = urlparse(db_url)
@@ -38,7 +38,8 @@ async def add_movie(update: Update, bot: Bot, state: FSMContext):
             user=url.username,
             password=url.password,
             host=url.hostname,
-            port=url.port
+            port=url.port,
+            sslmode='require'
         )
         cursor = conn.cursor()
         cursor.execute("INSERT INTO movies (name, link) VALUES (%s, %s) RETURNING id", (name, file_url))
@@ -46,9 +47,9 @@ async def add_movie(update: Update, bot: Bot, state: FSMContext):
         conn.commit()
         conn.close()
 
-        await update.message.reply_text(f"Kino qo'shildi! ID: {movie_id}")
+        await update.message.reply(f"Kino qo'shildi! ID: {movie_id}")
     else:
-        await update.message.reply_text("Iltimos, kino faylini yuboring!")
+        await update.message.reply("Iltimos, kino faylini yuboring!")
 
 # Kino tahrirlash
 async def edit_movie(update: Update, bot: Bot, state: FSMContext):
@@ -57,13 +58,13 @@ async def edit_movie(update: Update, bot: Bot, state: FSMContext):
 
     args = update.message.text.split()[1:] if update.message.text else []
     if len(args) < 2:
-        await update.message.reply_text("Iltimos, /edit_movie <ID> <yangi nom> yoki <yangi link> kiriting!")
+        await update.message.reply("Iltimos, /edit_movie <ID> <yangi nom> yoki <yangi link> kiriting!")
         return
 
     movie_id, new_value = args[0], " ".join(args[1:])
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+        await update.message.reply("Ma'lumotlar bazasi ulanishi topilmadi!")
         return
     
     url = urlparse(db_url)
@@ -72,7 +73,8 @@ async def edit_movie(update: Update, bot: Bot, state: FSMContext):
         user=url.username,
         password=url.password,
         host=url.hostname,
-        port=url.port
+        port=url.port,
+        sslmode='require'
     )
     cursor = conn.cursor()
     cursor.execute("UPDATE movies SET name = %s WHERE id = %s", (new_value, movie_id))
@@ -81,7 +83,7 @@ async def edit_movie(update: Update, bot: Bot, state: FSMContext):
     conn.commit()
     conn.close()
 
-    await update.message.reply_text(f"Kino (ID: {movie_id}) tahrirlandi!")
+    await update.message.reply(f"Kino (ID: {movie_id}) tahrirlandi!")
 
 # Kino o'chirish
 async def delete_movie(update: Update, bot: Bot, state: FSMContext):
@@ -90,13 +92,13 @@ async def delete_movie(update: Update, bot: Bot, state: FSMContext):
 
     args = update.message.text.split()[1:] if update.message.text else []
     if not args:
-        await update.message.reply_text("Iltimos, /delete_movie <ID> kiriting!")
+        await update.message.reply("Iltimos, /delete_movie <ID> kiriting!")
         return
 
     movie_id = args[0]
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+        await update.message.reply("Ma'lumotlar bazasi ulanishi topilmadi!")
         return
     
     url = urlparse(db_url)
@@ -105,14 +107,15 @@ async def delete_movie(update: Update, bot: Bot, state: FSMContext):
         user=url.username,
         password=url.password,
         host=url.hostname,
-        port=url.port
+        port=url.port,
+        sslmode='require'
     )
     cursor = conn.cursor()
     cursor.execute("DELETE FROM movies WHERE id = %s", (movie_id,))
     conn.commit()
     conn.close()
 
-    await update.message.reply_text(f"Kino (ID: {movie_id}) o'chirildi!")
+    await update.message.reply(f"Kino (ID: {movie_id}) o'chirildi!")
 
 # Kanal qo'shish/o'zgartirish
 async def set_channel(update: Update, bot: Bot, state: FSMContext):
@@ -121,9 +124,9 @@ async def set_channel(update: Update, bot: Bot, state: FSMContext):
 
     args = update.message.text.split()[1:] if update.message.text else []
     if not args:
-        await update.message.reply_text("Iltimos, /set_channel <kanal ID> kiriting!")
+        await update.message.reply("Iltimos, /set_channel <kanal ID> kiriting!")
         return
 
     channel_id = args[0]
     bot.data["channel_id"] = channel_id
-    await update.message.reply_text(f"Kanal o'zgartirildi: {channel_id}")
+    await update.message.reply(f"Kanal o'zgartirildi: {channel_id}")
