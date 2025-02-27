@@ -8,7 +8,7 @@ import os
 from urllib.parse import urlparse
 
 load_dotenv()
-ADMINS = [123456789]  # Adminlarning Telegram ID-lari
+ADMINS = [5358180855]  # Adminlarning Telegram ID-lari
 
 async def admin_check(update: Update, bot: Bot, state: FSMContext) -> bool:
     user_id = update.message.from_user.id
