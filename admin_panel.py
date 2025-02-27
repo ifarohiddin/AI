@@ -1,14 +1,16 @@
-from telegram import Update
-from telegram.ext import ContextTypes
+from aiogram import Bot, types
+from aiogram.types import Update
+from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
 import psycopg2
 from dotenv import load_dotenv
 import os
-import urlparse
+from urllib.parse import urlparse  # Yangilangan import
 
 load_dotenv()
-ADMINS = [5358180855]  # Adminlarning Telegram ID-lari
+ADMINS = [123456789]  # Adminlarning Telegram ID-lari
 
-async def admin_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+async def admin_check(update: Update, bot: Bot, state: FSMContext) -> bool:
     user_id = update.message.from_user.id
     if user_id not in ADMINS:
         await update.message.reply_text("Sizda admin huquqlari yo'q!")
@@ -16,8 +18,8 @@ async def admin_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> boo
     return True
 
 # Kino qo'shish
-async def add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await admin_check(update, context):
+async def add_movie(update: Update, bot: Bot, state: FSMContext):
+    if not await admin_check(update, bot, state):
         return
 
     if update.message.document:
@@ -49,11 +51,11 @@ async def add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Iltimos, kino faylini yuboring!")
 
 # Kino tahrirlash
-async def edit_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await admin_check(update, context):
+async def edit_movie(update: Update, bot: Bot, state: FSMContext):
+    if not await admin_check(update, bot, state):
         return
 
-    args = context.args
+    args = update.message.text.split()[1:] if update.message.text else []
     if len(args) < 2:
         await update.message.reply_text("Iltimos, /edit_movie <ID> <yangi nom> yoki <yangi link> kiriting!")
         return
@@ -82,15 +84,16 @@ async def edit_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Kino (ID: {movie_id}) tahrirlandi!")
 
 # Kino o'chirish
-async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await admin_check(update, context):
+async def delete_movie(update: Update, bot: Bot, state: FSMContext):
+    if not await admin_check(update, bot, state):
         return
 
-    if not context.args:
+    args = update.message.text.split()[1:] if update.message.text else []
+    if not args:
         await update.message.reply_text("Iltimos, /delete_movie <ID> kiriting!")
         return
 
-    movie_id = context.args[0]
+    movie_id = args[0]
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
@@ -112,14 +115,15 @@ async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Kino (ID: {movie_id}) o'chirildi!")
 
 # Kanal qo'shish/o'zgartirish
-async def set_channel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await admin_check(update, context):
+async def set_channel(update: Update, bot: Bot, state: FSMContext):
+    if not await admin_check(update, bot, state):
         return
 
-    if not context.args:
+    args = update.message.text.split()[1:] if update.message.text else []
+    if not args:
         await update.message.reply_text("Iltimos, /set_channel <kanal ID> kiriting!")
         return
 
-    channel_id = context.args[0]
-    context.bot_data["channel_id"] = channel_id
+    channel_id = args[0]
+    bot.data["channel_id"] = channel_id
     await update.message.reply_text(f"Kanal o'zgartirildi: {channel_id}")

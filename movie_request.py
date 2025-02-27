@@ -1,10 +1,15 @@
-from telegram import Update
-from telegram.ext import ContextTypes
-from check_user import check_membership
+from aiogram import Bot, types
+from aiogram.types import Update
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from check_user import check_membership  # Relative emas, absolute import
 
-async def request_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await check_membership(update, context):
+class MovieStates(StatesGroup):
+    waiting_for_movie_id = State()
+
+async def request_movie(update: Update, bot: Bot, state: FSMContext):
+    if not await check_membership(update, bot, state):
         return
 
     await update.message.reply_text("Iltimos, kino ID-sini kiriting:")
-    return "GET_MOVIE_ID"
+    await state.set_state(MovieStates.waiting_for_movie_id)

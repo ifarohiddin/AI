@@ -1,12 +1,11 @@
 import psycopg2
 from dotenv import load_dotenv
 import os
-import urlparse
+from urllib.parse import urlparse  # Yangilangan import
 
 load_dotenv()
 
 def init_db():
-    # DATABASE_URL dan ulanish
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise ValueError("DATABASE_URL environment variable is not set!")

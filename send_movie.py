@@ -1,19 +1,20 @@
-from telegram import Update
-from telegram.ext import ContextTypes
+from aiogram import Bot, types
+from aiogram.types import Update
+from aiogram.fsm.context import FSMContext
 import psycopg2
 from dotenv import load_dotenv
 import os
-import urlparse
+from urllib.parse import urlparse  # Yangilangan import
 
 load_dotenv()
 
-async def send_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def send_movie(update: Update, bot: Bot, state: FSMContext):
     movie_id = update.message.text
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
-        return None
-    
+        return
+
     url = urlparse(db_url)
     conn = psycopg2.connect(
         database=url.path[1:],
@@ -32,6 +33,6 @@ async def send_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Kino: {name}\nLink: {link}")
     else:
         await update.message.reply_text("Bunday ID bilan kino topilmadi!")
-    
+
     conn.close()
-    return None
+    await state.clear()

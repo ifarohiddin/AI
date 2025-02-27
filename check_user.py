@@ -1,11 +1,12 @@
-from telegram import Update
-from telegram.ext import ContextTypes
+from aiogram import Bot, types
+from aiogram.types import Update
+from aiogram.fsm.context import FSMContext
 
-async def check_membership(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+async def check_membership(update: Update, bot: Bot, state: FSMContext) -> bool:
     user_id = update.message.from_user.id
-    channel_id = context.bot_data.get("channel_id", "@DefaultChannel")
+    channel_id = bot.data.get("channel_id", "@DefaultChannel")
     try:
-        member = await context.bot.get_chat_member(channel_id, user_id)
+        member = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
         if member.status in ["member", "administrator", "creator"]:
             return True
         else:
