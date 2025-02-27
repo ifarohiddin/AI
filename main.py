@@ -3,15 +3,25 @@ from movie_request import request_movie
 from send_movie import send_movie
 from admin_panel import add_movie, edit_movie, delete_movie, set_channel
 from database import init_db
+import os
+from dotenv import load_dotenv
+import psycopg2
+
+load_dotenv()
+
+# Ma'lumotlar bazasini ishga tushirish
+init_db()
 
 GET_MOVIE_ID = range(1)
 
 def main():
-    # Bot tokenini kiriting
-    application = Application.builder().token("7202873256:AAE4xNb0SFn9eUd13mSMeYuK5R7PPb-xkhM").build()
+    # Bot tokenini olish
+    bot_token = os.getenv("BOT_TOKEN")
+    if not bot_token:
+        raise ValueError("BOT_TOKEN environment variable is not set!")
 
-    # Ma'lumotlar bazasini ishga tushirish
-    init_db()
+    # Application yaratish
+    application = Application.builder().token(bot_token).build()
 
     # Kino so'rov dialogi
     conv_handler = ConversationHandler(

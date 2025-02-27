@@ -1,8 +1,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-import sqlite3
+import psycopg2
+from dotenv import load_dotenv
+import os
+import urlparse
 
-ADMINS = [123456789]  # Adminlarning Telegram ID-lari
+load_dotenv()
+ADMINS = [5358180855]  # Adminlarning Telegram ID-lari
 
 async def admin_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     user_id = update.message.from_user.id
@@ -21,11 +25,23 @@ async def add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_url = file.file_path
         name = update.message.caption or "Nomsiz kino"
 
-        conn = sqlite3.connect("movies.db")
+        db_url = os.getenv("DATABASE_URL")
+        if not db_url:
+            await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+            return
+        
+        url = urlparse(db_url)
+        conn = psycopg2.connect(
+            database=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port
+        )
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO movies (name, link) VALUES (?, ?)", (name, file_url))
+        cursor.execute("INSERT INTO movies (name, link) VALUES (%s, %s) RETURNING id", (name, file_url))
+        movie_id = cursor.fetchone()[0]
         conn.commit()
-        movie_id = cursor.lastrowid
         conn.close()
 
         await update.message.reply_text(f"Kino qo'shildi! ID: {movie_id}")
@@ -43,11 +59,23 @@ async def edit_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     movie_id, new_value = args[0], " ".join(args[1:])
-    conn = sqlite3.connect("movies.db")
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+        return
+    
+    url = urlparse(db_url)
+    conn = psycopg2.connect(
+        database=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port
+    )
     cursor = conn.cursor()
-    cursor.execute("UPDATE movies SET name = ? WHERE id = ?", (new_value, movie_id))
+    cursor.execute("UPDATE movies SET name = %s WHERE id = %s", (new_value, movie_id))
     if cursor.rowcount == 0:
-        cursor.execute("UPDATE movies SET link = ? WHERE id = ?", (new_value, movie_id))
+        cursor.execute("UPDATE movies SET link = %s WHERE id = %s", (new_value, movie_id))
     conn.commit()
     conn.close()
 
@@ -63,9 +91,21 @@ async def delete_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     movie_id = context.args[0]
-    conn = sqlite3.connect("movies.db")
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        await update.message.reply_text("Ma'lumotlar bazasi ulanishi topilmadi!")
+        return
+    
+    url = urlparse(db_url)
+    conn = psycopg2.connect(
+        database=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port
+    )
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
+    cursor.execute("DELETE FROM movies WHERE id = %s", (movie_id,))
     conn.commit()
     conn.close()
 
