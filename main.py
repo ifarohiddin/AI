@@ -41,8 +41,8 @@ REQUIRED_CHANNELS = [
 class AdminStates(StatesGroup):
     waiting_for_movie_link = State()
     waiting_for_movie_name = State()
-    waiting_for_edit_movie = State()
-    waiting_for_delete_movie = State()
+    waiting_for_movie_id = State()  # Kino ID’si uchun (tahrirlash/o‘chirish)
+    waiting_for_movie_new_value = State()  # Yangi qiymat uchun (tahrirlash)
     waiting_for_channel_link = State()
     waiting_for_set_channel = State()
     waiting_for_delete_channel = State()
@@ -77,8 +77,32 @@ async def get_movies_list(bot: Bot, user_id: int):
     return response
 
 # Kanallar ro‘yxatini olish funksiyasi
-async def get_channels_list():
-    return f"🌐 *Hozirgi Kanal:* `{CHANNEL_ID}`"
+async def get_channels_list(bot: Bot):
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return "Ma'lumotlar bazasi ulanishi topilmadi!"
+
+    url = urlparse(db_url)
+    conn = psycopg2.connect(
+        database=url.path[1:],
+        user=url.username,
+        password=url.password,
+        host=url.hostname,
+        port=url.port,
+        sslmode='require'
+    )
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, link FROM channels")
+    channels = cursor.fetchall()
+    conn.close()
+
+    if not channels:
+        return "Hozircha hech qanday kanal mavjud emas!"
+
+    response = "🌐 *Kanallar Ro‘yxati:*\n"
+    for channel in channels:
+        response += f"📋 ID: `{channel[0]}` | Link: *{channel[1]}*\n"
+    return response
 
 # /start komandasiga javob (oddiy foydalanuvchi va admin uchun, kanallar ro‘yxati button’lar bilan)
 @dp.message(Command(commands=["start"]))
@@ -133,13 +157,13 @@ async def process_add_movie(callback_query: types.CallbackQuery, state: FSMConte
 @dp.callback_query(lambda c: c.data == "edit_movie")
 async def process_edit_movie(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*✏️ Kino ID va yangi nom/linkni kiriting (format: /edit_movie <ID> <yangi qiymat>):*\n\nMasalan: */edit_movie 1 Yangi Kino*", parse_mode="Markdown")
-    await state.set_state(AdminStates.waiting_for_edit_movie)
+    await bot.send_message(callback_query.from_user.id, "*✏️ Kino ID’sini kiriting:*\n\nMasalan: *1*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_movie_id)
 
 @dp.callback_query(lambda c: c.data == "delete_movie")
 async def process_delete_movie(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*🗑️ O'chirish uchun kino ID-sini kiriting (format: /delete_movie <ID>):*\n\nMasalan: */delete_movie 1*", parse_mode="Markdown")
+    await bot.send_message(callback_query.from_user.id, "*🗑️ O'chirish uchun kino ID’sini kiriting:*\n\nMasalan: *1*", parse_mode="Markdown")
     await state.set_state(AdminStates.waiting_for_delete_movie)
 
 @dp.callback_query(lambda c: c.data == "set_channel")
@@ -151,13 +175,13 @@ async def process_set_channel(callback_query: types.CallbackQuery, state: FSMCon
 @dp.callback_query(lambda c: c.data == "delete_channel")
 async def process_delete_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*🗑️ O'chirish uchun kanal ID-sini kiriting:*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
+    await bot.send_message(callback_query.from_user.id, "*🗑️ O'chirish uchun kanal ID’sini kiriting:*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
     await state.set_state(AdminStates.waiting_for_delete_channel)
 
 @dp.callback_query(lambda c: c.data == "edit_channel")
 async def process_edit_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*✏️ Kanal ID va yangi kanal ID-sini kiriting (format: /edit_channel <eski_ID> <yangi_ID>):*\n\nMasalan: */edit_channel @old_channel @new_channel*", parse_mode="Markdown")
+    await bot.send_message(callback_query.from_user.id, "*✏️ Kanal ID va yangi kanal ID’sini kiriting (format: <eski_ID> <yangi_ID>):*\n\nMasalan: *@old_channel @new_channel*", parse_mode="Markdown")
     await state.set_state(AdminStates.waiting_for_edit_channel)
 
 @dp.callback_query(lambda c: c.data == "view_movies")
@@ -169,7 +193,7 @@ async def process_view_movies(callback_query: types.CallbackQuery, state: FSMCon
 @dp.callback_query(lambda c: c.data == "view_channels")
 async def process_view_channels(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    channels_list = await get_channels_list()
+    channels_list = await get_channels_list(bot)
     await bot.send_message(callback_query.from_user.id, channels_list, parse_mode="Markdown")
 
 # Admin uchun yangi handler'lar
@@ -196,27 +220,38 @@ async def handle_movie_name(message: Message, state: FSMContext):
     await message.answer(f"*🎬 Kino muvaffaqiyatli qo'shildi! Nom: {movie_name} | Link: {movie_link}*\n\nRahmat, yangi kino uchun! 🎥", parse_mode="Markdown")
     await state.clear()
 
-@dp.message(AdminStates.waiting_for_edit_movie, lambda message: message.from_user.id in [5358180855])
-async def handle_edit_movie(message: Message, state: FSMContext):
-    args = message.text.split()
-    if len(args) < 3 or not args[0].startswith("/edit_movie"):
-        await message.answer("*❌ Iltimos, /edit_movie <ID> <yangi nom/link> kiriting!*\n\nMasalan: */edit_movie 1 Yangi Kino*", parse_mode="Markdown")
+@dp.message(AdminStates.waiting_for_movie_id, lambda message: message.from_user.id in [5358180855])
+async def handle_movie_id_for_edit(message: Message, state: FSMContext):
+    movie_id = message.text
+    if not movie_id.isdigit():
+        await message.answer("*❌ Iltimos, to‘g‘ri kino ID’sini kiriting!*\n\nMasalan: *1*", parse_mode="Markdown")
         await state.clear()
         return
-    movie_id, new_value = args[1], " ".join(args[2:])
-    await edit_movie(message, bot, state)
+    await state.update_data(movie_id=movie_id)
+    await message.answer("*✏️ Yangi nom yoki linkni kiriting:*\n\nMasalan: *Yangi Kino* yoki *https://t.me/example_channel/123*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_movie_new_value)
+
+@dp.message(AdminStates.waiting_for_movie_new_value, lambda message: message.from_user.id in [5358180855])
+async def handle_movie_new_value(message: Message, state: FSMContext):
+    new_value = message.text
+    user_data = await state.get_data()
+    movie_id = user_data.get("movie_id")
+    if not movie_id or not new_value:
+        await message.answer("*❌ Kino ID yoki yangi qiymat kiritilmagan!*\n\nQayta urinib ko‘ring.", parse_mode="Markdown")
+        await state.clear()
+        return
+    await edit_movie(message, bot, state, movie_id, new_value)
     await message.answer(f"*✏️ Kino (ID: {movie_id}) muvaffaqiyatli tahrirlandi!*\n\nYangi qiymat: *{new_value}*", parse_mode="Markdown")
     await state.clear()
 
 @dp.message(AdminStates.waiting_for_delete_movie, lambda message: message.from_user.id in [5358180855])
 async def handle_delete_movie(message: Message, state: FSMContext):
-    args = message.text.split()
-    if not args or not args[0].startswith("/delete_movie"):
-        await message.answer("*❌ Iltimos, /delete_movie <ID> kiriting!*\n\nMasalan: */delete_movie 1*", parse_mode="Markdown")
+    movie_id = message.text
+    if not movie_id.isdigit():
+        await message.answer("*❌ Iltimos, to‘g‘ri kino ID’sini kiriting!*\n\nMasalan: *1*", parse_mode="Markdown")
         await state.clear()
         return
-    movie_id = args[1]
-    await delete_movie(message, bot, state)
+    await delete_movie(message, bot, state, movie_id)
     await message.answer(f"*🗑️ Kino (ID: {movie_id}) muvaffaqiyatli o'chirildi!*\n\nRahmat, buni uchun!", parse_mode="Markdown")
     await state.clear()
 
@@ -239,24 +274,23 @@ async def handle_set_channel(message: Message, state: FSMContext):
         await message.answer("*❌ Kanal ID yoki linki kiritilmagan!*\n\nQayta urinib ko‘ring.", parse_mode="Markdown")
         await state.clear()
         return
+    await set_channel(message, bot, state, channel_id, channel_link)
     global CHANNEL_ID
     CHANNEL_ID = channel_id
-    await set_channel(message, bot, state)
     await message.answer(f"*🌐 Kanal muvaffaqiyatli o'zgartirildi: {channel_id}*\n\nKanalni tekshirib ko‘ring! Link: {channel_link}", parse_mode="Markdown")
     await state.clear()
 
 @dp.message(AdminStates.waiting_for_delete_channel, lambda message: message.from_user.id in [5358180855])
 async def handle_delete_channel(message: Message, state: FSMContext):
-    args = message.text.split()
-    if not args:
-        await message.answer("*❌ Iltimos, o'chirish uchun kanal ID-sini kiriting!*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
+    channel_id = message.text
+    if not (channel_id.startswith('@') or channel_id.startswith('-100')):
+        await message.answer("*❌ Iltimos, to‘g‘ri kanal ID’sini kiriting!*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
         await state.clear()
         return
-    channel_id = args[0]
+    await delete_channel(message, bot, state, channel_id)
     global CHANNEL_ID
     if CHANNEL_ID == channel_id:
         CHANNEL_ID = "@DefaultChannel"
-        await delete_channel(message, bot, state)
         await message.answer(f"*🗑️ Kanal {channel_id} muvaffaqiyatli o'chirildi!*\n\nStandart kanalga qaytdik: @DefaultChannel*", parse_mode="Markdown")
     else:
         await message.answer("*❌ Bunday kanal topilmadi!*\n\nKanal ID’sini qayta tekshirib ko‘ring.", parse_mode="Markdown")
@@ -266,14 +300,18 @@ async def handle_delete_channel(message: Message, state: FSMContext):
 async def handle_edit_channel(message: Message, state: FSMContext):
     args = message.text.split()
     if len(args) < 2:
-        await message.answer("*❌ Iltimos, /edit_channel <eski_ID> <yangi_ID> kiriting!*\n\nMasalan: */edit_channel @old_channel @new_channel*", parse_mode="Markdown")
+        await message.answer("*❌ Iltimos, <eski_ID> <yangi_ID> kiriting!*\n\nMasalan: *@old_channel @new_channel*", parse_mode="Markdown")
         await state.clear()
         return
     old_channel_id, new_channel_id = args[0], args[1]
+    if not (old_channel_id.startswith('@') or old_channel_id.startswith('-100')) or not (new_channel_id.startswith('@') or new_channel_id.startswith('-100')):
+        await message.answer("*❌ Iltimos, to‘g‘ri kanal ID’larini kiriting!*\n\nMasalan: *@old_channel @new_channel*", parse_mode="Markdown")
+        await state.clear()
+        return
+    await edit_channel(message, bot, state, old_channel_id, new_channel_id)
     global CHANNEL_ID
     if CHANNEL_ID == old_channel_id:
         CHANNEL_ID = new_channel_id
-        await edit_channel(message, bot, state)
         await message.answer(f"*✏️ Kanal {old_channel_id} yangi ID {new_channel_id} bilan muvaffaqiyatli tahrirlandi!*\n\nKanalni tekshirib ko‘ring!", parse_mode="Markdown")
     else:
         await message.answer("*❌ Bunday kanal topilmadi!*\n\nEski kanal ID’sini qayta tekshirib ko‘ring.", parse_mode="Markdown")

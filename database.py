@@ -28,6 +28,12 @@ def init_db():
             link TEXT NOT NULL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS channels (
+            id TEXT PRIMARY KEY,
+            link TEXT NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
     print("*📊 Database initialized successfully.*")
