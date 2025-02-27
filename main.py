@@ -9,6 +9,7 @@ from database import init_db
 from aiogram.filters import Command
 from check_user import check_membership
 from aiogram.fsm.context import FSMContext
+from typing import Union
 import os
 from dotenv import load_dotenv
 import psycopg2
@@ -159,7 +160,7 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
         ])
-        await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID-sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
+        await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
         await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
     else:
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
