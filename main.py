@@ -47,6 +47,7 @@ class AdminStates(StatesGroup):
     waiting_for_set_channel = State()
     waiting_for_delete_channel = State()
     waiting_for_edit_channel = State()
+    waiting_for_delete_movie = State()  # Kino o‘chirish uchun yangi davlat
 
 # Kinolar ro‘yxatini olish funksiyasi
 async def get_movies_list(bot: Bot, user_id: int):
