@@ -38,8 +38,9 @@ class AdminStates(StatesGroup):
     waiting_for_movie_name = State()
     waiting_for_movie_id = State()  # Kino ID’si uchun (tahrirlash/o‘chirish)
     waiting_for_movie_new_value = State()  # Yangi qiymat uchun (tahrirlash)
-    waiting_for_channel_link = State()
-    waiting_for_set_channel = State()
+    waiting_for_channel_name = State()  # Kanal nomi uchun
+    waiting_for_channel_id = State()  # Kanal ID’si uchun
+    waiting_for_channel_link = State()  # Kanal linki uchun
     waiting_for_delete_channel = State()
     waiting_for_edit_channel = State()
     waiting_for_delete_movie = State()  # Kino o‘chirish uchun yangi davlat
@@ -91,11 +92,11 @@ async def get_channels_list(bot: Bot) -> list:
         sslmode='require'
     )
     cursor = conn.cursor()
-    cursor.execute("SELECT id, link FROM channels")
+    cursor.execute("SELECT name, id, link FROM channels")
     channels = cursor.fetchall()
     conn.close()
 
-    return channels  # Hamma kanal ma'lumotlarini (ID va link) qaytaradi
+    return channels  # Hamma kanal ma'lumotlarini (nom, ID, link) qaytaradi
 
 # /start komandasiga javob (foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi kanallar ro‘yxati)
 @dp.message(Command(commands=["start"]))
@@ -132,12 +133,24 @@ async def cmd_start(message: Message, state: FSMContext):
             await message.answer("*⚠️ Hozircha hech qanday kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
             return
 
-        # Kanallar ro‘yxatini button’lar bilan ko‘rsatish (har bir kanal uchun alohida qator)
-        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=f"https://t.me/{channel[0].replace('@', '') if channel[0].startswith('@') else channel[0]}")]
-            for channel in channels
-        ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
-        await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
+        # Foydalanuvchining a’zoligini tekshirish
+        channel_ids = [channel[1] for channel in channels]  # Faqat ID’lar ro‘yxatini olish
+        membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel_id) for channel_id in channel_ids])
+        non_member_channels = [channel for i, channel in enumerate(channels) if not membership_results[i]]
+
+        if not non_member_channels:
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
+            ])
+            await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
+            await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
+        else:
+            # Faqat a’zo bo‘lmagan kanallarni button’lar bilan ko‘rsatish
+            keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=channel[2] if channel[2].startswith("https://t.me/") else f"https://t.me/{channel[1].replace('@', '') if channel[1].startswith('@') else channel[1]}")]
+                for channel in non_member_channels
+            ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
+            await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler’lar (foydalanuvchi uchun tekshirish)
 @dp.callback_query(lambda c: c.data == "check_membership")
@@ -153,8 +166,8 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         return
 
     # Asinxron chaqiruvlarni to‘g‘ri boshqarish
-    channel_ids = [channel[0] for channel in channels]  # Faqat ID’lar ro‘yxatini olish
-    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in channel_ids])
+    channel_ids = [channel[1] for channel in channels]  # Faqat ID’lar ro‘yxatini olish
+    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel_id) for channel_id in channel_ids])
     if all(membership_results):
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
@@ -162,10 +175,11 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
         await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
     else:
-        # Kanallar ro‘yxatini button’lar bilan qayta ko‘rsatish
+        # Faqat a’zo bo‘lmagan kanallarni button’lar bilan qayta ko‘rsatish
+        non_member_channels = [channel for i, channel in enumerate(channels) if not membership_results[i]]
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=f"https://t.me/{channel[0].replace('@', '') if channel[0].startswith('@') else channel[0]}")]
-            for channel in channels
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=channel[2] if channel[2].startswith("https://t.me/") else f"https://t.me/{channel[1].replace('@', '') if channel[1].startswith('@') else channel[1]}")]
+            for channel in non_member_channels
         ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
         await message.answer("*❌ Siz hali barcha kanallarga a'zo emassiz! Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta tekshiring!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
@@ -191,8 +205,8 @@ async def process_delete_movie(callback_query: types.CallbackQuery, state: FSMCo
 @dp.callback_query(lambda c: c.data == "set_channel")
 async def process_set_channel(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "*🌐 Kanal linkini kiriting:*\n\nMasalan: *https://t.me/example_channel*", parse_mode="Markdown")
-    await state.set_state(AdminStates.waiting_for_channel_link)
+    await bot.send_message(callback_query.from_user.id, "*🌐 Kanal nomini kiriting:*\n\nMasalan: *Kino PRIME*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_channel_name)
 
 @dp.callback_query(lambda c: c.data == "delete_channel")
 async def process_delete_channel(callback_query: types.CallbackQuery, state: FSMContext):
@@ -216,10 +230,51 @@ async def process_view_movies(callback_query: types.CallbackQuery, state: FSMCon
 async def process_view_channels(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
     channels_list = await get_channels_list(bot)
-    response = "🌐 *Kanallar Ro‘yxati:*\n" + "\n".join([f"📋 ID: `{channel[0]}` | Link: *{channel[1]}*" for channel in channels_list])
+    response = "🌐 *Kanallar Ro‘yxati:*\n" + "\n".join([f"📋 Nom: *{channel[0]}* | ID: `{channel[1]}` | Link: *{channel[2]}*" for channel in channels_list])
     await bot.send_message(callback_query.from_user.id, response, parse_mode="Markdown")
 
 # Admin uchun yangi handler'lar
+@dp.message(AdminStates.waiting_for_channel_name, lambda message: message.from_user.id in [5358180855])
+async def handle_channel_name(message: Message, state: FSMContext):
+    channel_name = message.text
+    if not channel_name:
+        await message.answer("*❌ Iltimos, to‘g‘ri kanal nomini kiriting!*\n\nMasalan: *Kino PRIME*", parse_mode="Markdown")
+        return
+    await state.update_data(channel_name=channel_name)
+    await message.answer("*🌐 Kanal ID’sini kiriting:*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_channel_id)
+
+@dp.message(AdminStates.waiting_for_channel_id, lambda message: message.from_user.id in [5358180855])
+async def handle_channel_id(message: Message, state: FSMContext):
+    channel_id = message.text
+    if not (channel_id.startswith('@') or channel_id.startswith('-100')):
+        await message.answer("*❌ Iltimos, to‘g‘ri kanal ID’sini kiriting!*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
+        await state.clear()
+        return
+    await state.update_data(channel_id=channel_id)
+    await message.answer("*🌐 Kanal linkini kiriting:*\n\nMasalan: *https://t.me/example_channel*", parse_mode="Markdown")
+    await state.set_state(AdminStates.waiting_for_channel_link)
+
+@dp.message(AdminStates.waiting_for_channel_link, lambda message: message.from_user.id in [5358180855])
+async def handle_channel_link(message: Message, state: FSMContext):
+    channel_link = message.text
+    if not channel_link.startswith("https://t.me/"):
+        await message.answer("*❌ Iltimos, to‘g‘ri kanal linkini kiriting!*\n\nMasalan: *https://t.me/example_channel*", parse_mode="Markdown")
+        await state.clear()
+        return
+    user_data = await state.get_data()
+    channel_name = user_data.get("channel_name")
+    channel_id = user_data.get("channel_id")
+    if not channel_name or not channel_id or not channel_link:
+        await message.answer("*❌ Kanal nomi, ID yoki linki kiritilmagan!*\n\nQayta urinib ko‘ring.", parse_mode="Markdown")
+        await state.clear()
+        return
+    await set_channel(message, bot, state, channel_name, channel_id, channel_link)
+    global CHANNEL_ID
+    CHANNEL_ID = channel_id
+    await message.answer(f"*🌐 Kanal muvaffaqiyatli qo'shildi! Nom: {channel_name} | ID: {channel_id} | Link: {channel_link}*\n\nKanalni tekshirib ko‘ring!", parse_mode="Markdown")
+    await state.clear()
+
 @dp.message(AdminStates.waiting_for_movie_link, lambda message: message.from_user.id in [5358180855])
 async def handle_movie_link(message: Message, state: FSMContext):
     movie_link = message.text
@@ -276,31 +331,6 @@ async def handle_delete_movie(message: Message, state: FSMContext):
         return
     await delete_movie(message, bot, state, movie_id)
     await message.answer(f"*🗑️ Kino (ID: {movie_id}) muvaffaqiyatli o'chirildi!*\n\nRahmat, buni uchun!", parse_mode="Markdown")
-    await state.clear()
-
-@dp.message(AdminStates.waiting_for_channel_link, lambda message: message.from_user.id in [5358180855])
-async def handle_channel_link(message: Message, state: FSMContext):
-    channel_link = message.text
-    if not channel_link.startswith("https://t.me/"):
-        await message.answer("*❌ Iltimos, to‘g‘ri kanal linkini kiriting!*\n\nMasalan: *https://t.me/example_channel*", parse_mode="Markdown")
-        return
-    await state.update_data(channel_link=channel_link)
-    await message.answer("*🌐 Kanal ID’sini kiriting:*\n\nMasalan: *@example_channel* yoki *-1001234567890*", parse_mode="Markdown")
-    await state.set_state(AdminStates.waiting_for_set_channel)
-
-@dp.message(AdminStates.waiting_for_set_channel, lambda message: message.from_user.id in [5358180855])
-async def handle_set_channel(message: Message, state: FSMContext):
-    channel_id = message.text
-    user_data = await state.get_data()
-    channel_link = user_data.get("channel_link")
-    if not channel_id or not channel_link:
-        await message.answer("*❌ Kanal ID yoki linki kiritilmagan!*\n\nQayta urinib ko‘ring.", parse_mode="Markdown")
-        await state.clear()
-        return
-    await set_channel(message, bot, state, channel_id, channel_link)
-    global CHANNEL_ID
-    CHANNEL_ID = channel_id
-    await message.answer(f"*🌐 Kanal muvaffaqiyatli o'zgartirildi: {channel_id}*\n\nKanalni tekshirib ko‘ring! Link: {channel_link}", parse_mode="Markdown")
     await state.clear()
 
 @dp.message(AdminStates.waiting_for_delete_channel, lambda message: message.from_user.id in [5358180855])

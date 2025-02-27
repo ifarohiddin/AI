@@ -98,8 +98,8 @@ async def delete_movie(message: Message, bot: Bot, state: FSMContext, movie_id: 
 
     await message.reply(f"*🗑️ Kino (ID: {movie_id}) muvaffaqiyatli o'chirildi!*\n\nRahmat, buni uchun!", parse_mode="Markdown")
 
-# Kanal qo'shish/o'zgartirish (yangi: link va ID bilan, ma'lumotlar bazasiga saqlash)
-async def set_channel(message: Message, bot: Bot, state: FSMContext, channel_id: str, channel_link: str):
+# Kanal qo'shish/o'zgartirish (yangi: nom, ID va link bilan, ma'lumotlar bazasiga saqlash)
+async def set_channel(message: Message, bot: Bot, state: FSMContext, channel_name: str, channel_id: str, channel_link: str):
     if not await admin_check(message, bot, state):
         return
 
@@ -118,11 +118,11 @@ async def set_channel(message: Message, bot: Bot, state: FSMContext, channel_id:
         sslmode='require'
     )
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO channels (id, link) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET link = EXCLUDED.link", (channel_id, channel_link))
+    cursor.execute("INSERT INTO channels (name, id, link) VALUES (%s, %s, %s) ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, link = EXCLUDED.link", (channel_name, channel_id, channel_link))
     conn.commit()
     conn.close()
 
-    await message.reply(f"*🌐 Kanal muvaffaqiyatli o'zgartirildi: {channel_id}*\n\nKanalni tekshirib ko‘ring! Link: {channel_link}", parse_mode="Markdown")
+    await message.reply(f"*🌐 Kanal muvaffaqiyatli qo'shildi! Nom: {channel_name} | ID: {channel_id} | Link: {channel_link}*\n\nKanalni tekshirib ko‘ring!", parse_mode="Markdown")
 
 # Kanal o'chirish
 async def delete_channel(message: Message, bot: Bot, state: FSMContext, channel_id: str):
@@ -175,7 +175,13 @@ async def edit_channel(message: Message, bot: Bot, state: FSMContext, old_channe
         await message.reply("*❌ Bunday kanal topilmadi!*\n\nEski kanal ID’sini qayta tekshirib ko‘ring.", parse_mode="Markdown")
         conn.close()
         return
+    # Yangi ID uchun nom va linkni yangilash uchun qo‘shimcha so‘rov (agar kerak bo‘lsa)
+    cursor.execute("SELECT name, link FROM channels WHERE id = %s", (new_channel_id,))
+    channel = cursor.fetchone()
+    if channel:
+        name, link = channel
+        await message.answer(f"*✏️ Kanal {old_channel_id} yangi ID {new_channel_id} bilan muvaffaqiyatli tahrirlandi!*\n\nNom: {name} | Link: {link}", parse_mode="Markdown")
+    else:
+        await message.answer(f"*✏️ Kanal {old_channel_id} yangi ID {new_channel_id} bilan muvaffaqiyatli tahrirlandi!*\n\nKanal ma'lumotlarini yangilang.", parse_mode="Markdown")
     conn.commit()
     conn.close()
-
-    await message.reply(f"*✏️ Kanal {old_channel_id} yangi ID {new_channel_id} bilan muvaffaqiyatli tahrirlandi!*\n\nKanalni tekshirib ko‘ring!", parse_mode="Markdown")

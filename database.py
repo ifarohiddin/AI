@@ -30,6 +30,7 @@ def init_db():
     """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS channels (
+            name TEXT NOT NULL,
             id TEXT PRIMARY KEY,
             link TEXT NOT NULL
         )
