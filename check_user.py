@@ -1,5 +1,5 @@
 from aiogram import Bot, types
-from aiogram.types import Update
+from aiogram.types import Update, Message
 from aiogram.fsm.context import FSMContext
 from typing import Union
 

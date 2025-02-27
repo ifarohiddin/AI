@@ -18,7 +18,7 @@ def init_db():
         password=url.password,
         host=url.hostname,
         port=url.port,
-        sslmode='require'  # SSL ni majburiy qilish
+        sslmode='require'
     )
     cursor = conn.cursor()
     cursor.execute("""
