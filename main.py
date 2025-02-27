@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 import psycopg2
 from urllib.parse import urlparse
+import asyncio
 
 load_dotenv()
 
@@ -135,7 +136,9 @@ async def cmd_start(message: Message, state: FSMContext):
     else:
         # Oddiy foydalanuvchi uchun kanallar ro‘yxatini button’lar bilan ko‘rsatish
         await message.answer("*Salom! Men kino botiman. Avval kanallarga a'zo bo'ling!*\n\nBotim bilan tanishganingizdan xursandman! 🌟", parse_mode="Markdown")
-        if all(await check_membership(message, bot, None, channel) for channel in REQUIRED_CHANNELS):
+        # Asinxron chaqiruvlarni to‘g‘ri boshqarish
+        membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in REQUIRED_CHANNELS])
+        if all(membership_results):
             keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
                 [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
             ])
