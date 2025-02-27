@@ -3,6 +3,8 @@ from aiogram.types import Update, Message
 from aiogram.fsm.context import FSMContext
 from typing import Union
 import os
+import psycopg2
+from urllib.parse import urlparse
 
 # Global o‘zgaruvchi sifatida kanal ID’sini saqlash
 CHANNEL_ID = os.getenv("CHANNEL_ID", "@DefaultChannel")  # .env dan olish mumkin

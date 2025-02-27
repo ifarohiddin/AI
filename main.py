@@ -7,7 +7,7 @@ from send_movie import send_movie
 from admin_panel import add_movie, edit_movie, delete_movie, set_channel, delete_channel, edit_channel
 from database import init_db
 from aiogram.filters import Command
-from check_user import check_membership
+from check_user import check_membership, get_channels_from_db
 from aiogram.fsm.context import FSMContext
 from typing import Union
 import os
@@ -95,7 +95,7 @@ async def get_channels_list(bot: Bot) -> list:
     channels = cursor.fetchall()
     conn.close()
 
-    return [channel[0] for channel in channels]  # Faqat ID’lar ro‘yxatini qaytaradi
+    return channels  # Hamma kanal ma'lumotlarini (ID va link) qaytaradi
 
 # /start komandasiga javob (foydalanuvchi uchun salomlashish va ma'lumotlar bazasidagi kanallar ro‘yxati)
 @dp.message(Command(commands=["start"]))
@@ -132,11 +132,11 @@ async def cmd_start(message: Message, state: FSMContext):
             await message.answer("*⚠️ Hozircha hech qanday kanal mavjud emas!*\n\nAdmin bilan bog‘laning yoki kanallarni qo‘shing.", parse_mode="Markdown")
             return
 
-        # Kanallar ro‘yxatini button’lar bilan ko‘rsatish
+        # Kanallar ro‘yxatini button’lar bilan ko‘rsatish (har bir kanal uchun alohida qator)
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in channels],
-            [types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]
-        ])
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=f"https://t.me/{channel[0].replace('@', '') if channel[0].startswith('@') else channel[0]}")]
+            for channel in channels
+        ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
         await message.answer("*Iltimos, quyidagi kanallarga a'zo bo'ling, keyin “Tekshirish” tugmasini bosing!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler’lar (foydalanuvchi uchun tekshirish)
@@ -153,7 +153,8 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         return
 
     # Asinxron chaqiruvlarni to‘g‘ri boshqarish
-    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in channels])
+    channel_ids = [channel[0] for channel in channels]  # Faqat ID’lar ro‘yxatini olish
+    membership_results = await asyncio.gather(*[check_membership(message, bot, None, channel) for channel in channel_ids])
     if all(membership_results):
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="🌐 Kanallar Ro‘yxati", callback_data="view_channels")]
@@ -161,10 +162,11 @@ async def process_check_membership(callback_query: types.CallbackQuery, state: F
         await message.answer("*✅ Siz barcha zarur kanallarga a'zo ekansiz! Kino so‘rov qilish uchun kino ID’sini kiriting:*\n\nMenga yordam berish uchun kanalga a'zo bo‘ling! 🎥", reply_markup=keyboard, parse_mode="Markdown")
         await state.set_state(UserStates.waiting_for_movie_id)  # Foydalanuvchi uchun kino ID’si davlati
     else:
+        # Kanallar ro‘yxatini button’lar bilan qayta ko‘rsatish
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel}", url=f"https://t.me/{channel.replace('@', '') if channel.startswith('@') else channel}") for channel in channels],
-            [types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]
-        ])
+            [types.InlineKeyboardButton(text=f"📋 Kanal: {channel[0]}", url=f"https://t.me/{channel[0].replace('@', '') if channel[0].startswith('@') else channel[0]}")]
+            for channel in channels
+        ] + [[types.InlineKeyboardButton(text="✅ Tekshirish", callback_data="check_membership")]])
         await message.answer("*❌ Siz hali barcha kanallarga a'zo emassiz! Iltimos, quyidagi kanallarga a'zo bo'ling, keyin qayta tekshiring!*\n\nKanalga a'zo bo‘lganingizdan keyin men bilan davom eting! 🚀", reply_markup=keyboard, parse_mode="Markdown")
 
 # Callback handler'lar admin uchun
@@ -214,7 +216,8 @@ async def process_view_movies(callback_query: types.CallbackQuery, state: FSMCon
 async def process_view_channels(callback_query: types.CallbackQuery, state: FSMContext):
     await bot.answer_callback_query(callback_query.id)
     channels_list = await get_channels_list(bot)
-    await bot.send_message(callback_query.from_user.id, channels_list, parse_mode="Markdown")
+    response = "🌐 *Kanallar Ro‘yxati:*\n" + "\n".join([f"📋 ID: `{channel[0]}` | Link: *{channel[1]}*" for channel in channels_list])
+    await bot.send_message(callback_query.from_user.id, response, parse_mode="Markdown")
 
 # Admin uchun yangi handler'lar
 @dp.message(AdminStates.waiting_for_movie_link, lambda message: message.from_user.id in [5358180855])
