@@ -11,7 +11,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Ma'lumotlar bazasini ishga tushirish
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"Database initialization failed: {e}")
+    raise
 
 bot = Bot(token=os.getenv("BOT_TOKEN"))
 storage = MemoryStorage()

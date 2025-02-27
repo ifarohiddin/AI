@@ -1,22 +1,24 @@
 import psycopg2
 from dotenv import load_dotenv
 import os
-from urllib.parse import urlparse  # Yangilangan import
+from urllib.parse import urlparse
 
 load_dotenv()
 
 def init_db():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        raise ValueError("DATABASE_URL environment variable is not set!")
-    
+        raise ValueError("DATABASE_URL environment variable is not set! Please check your Railway Variables.")
+
+    print(f"Attempting to connect with DATABASE_URL: {db_url}")  # Debugging
     url = urlparse(db_url)
     conn = psycopg2.connect(
         database=url.path[1:],
         user=url.username,
         password=url.password,
         host=url.hostname,
-        port=url.port
+        port=url.port,
+        sslmode='require'  # SSL ni majburiy qilish
     )
     cursor = conn.cursor()
     cursor.execute("""
@@ -28,6 +30,7 @@ def init_db():
     """)
     conn.commit()
     conn.close()
+    print("Database initialized successfully.")
 
 if __name__ == "__main__":
     init_db()
